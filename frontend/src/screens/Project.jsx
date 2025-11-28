@@ -5,7 +5,7 @@ import axios from '../config/axios'
 import { initializeSocket, receiveMessage, sendMessage } from '../config/socket'
 import Markdown from 'markdown-to-jsx'
 import hljs from 'highlight.js';
-import { getWebContainer } from '../config/webContainer.js'
+import { getWebContainer } from '../config/webcontainer'
 
 
 function SyntaxHighlightedCode(props) {
@@ -48,138 +48,134 @@ const Project = () => {
 
     const [ runProcess, setRunProcess ] = useState(null)
 
-    const token = localStorage.getItem("token");
+    const handleUserClick = (id) => {
+        setSelectedUserId(prevSelectedUserId => {
+            const newSelectedUserId = new Set(prevSelectedUserId);
+            if (newSelectedUserId.has(id)) {
+                newSelectedUserId.delete(id);
+            } else {
+                newSelectedUserId.add(id);
+            }
 
-const handleUserClick = (id) => {
-    setSelectedUserId(prevSelectedUserId => {
-        const newSelectedUserId = new Set(prevSelectedUserId);
-        if (newSelectedUserId.has(id)) {
-            newSelectedUserId.delete(id);
-        } else {
-            newSelectedUserId.add(id);
-        }
-        return newSelectedUserId;
-    });
-}
+            return newSelectedUserId;
+        });
 
-function addCollaborators() {
-    axios.put(
-        "/projects/add-user",
-        {
-            projectId: location.state.project._id,
-            users: Array.from(selectedUserId)
-        },
-        {
-            headers: { Authorization: `Bearer ${token}` }
-        }
-    )
-    .then(res => {
-        console.log(res.data)
-        setIsModalOpen(false)
-    })
-    .catch(err => {
-        console.log(err)
-    })
-}
 
-const send = () => {
-    sendMessage('project-message', {
-        message,
-        sender: user
-    })
-    setMessages(prevMessages => [...prevMessages, { sender: user, message }])
-    setMessage("")
-}
-
-function WriteAiMessage(message) {
-    const messageObject = JSON.parse(message)
-
-    return (
-        <div className='overflow-auto bg-slate-950 text-white rounded-sm p-2'>
-            <Markdown
-                children={messageObject.text}
-                options={{
-                    overrides: {
-                        code: SyntaxHighlightedCode,
-                    },
-                }}
-            />
-        </div>
-    )
-}
-
-useEffect(() => {
-
-    initializeSocket(project._id)
-
-    if (!webContainer) {
-        getWebContainer().then(container => {
-            setWebContainer(container)
-            console.log("container started")
-        })
     }
 
-    receiveMessage('project-message', data => {
 
-        console.log(data)
-        
-        if (data.sender._id == 'ai') {
+    function addCollaborators() {
 
-            const message = JSON.parse(data.message)
-            console.log(message)
+        axios.put("/projects/add-user", {
+            projectId: location.state.project._id,
+            users: Array.from(selectedUserId)
+        }).then(res => {
+            console.log(res.data)
+            setIsModalOpen(false)
 
-            webContainer?.mount(message.fileTree)
+        }).catch(err => {
+            console.log(err)
+        })
 
-            if (message.fileTree) {
-                setFileTree(message.fileTree || {})
-            }
-            setMessages(prevMessages => [...prevMessages, data])
-        } else {
+    }
 
-            setMessages(prevMessages => [...prevMessages, data])
+    const send = () => {
+
+        sendMessage('project-message', {
+            message,
+            sender: user
+        })
+        setMessages(prevMessages => [ ...prevMessages, { sender: user, message } ]) // Update messages state
+        setMessage("")
+
+    }
+
+    function WriteAiMessage(message) {
+
+        const messageObject = JSON.parse(message)
+
+        return (
+            <div
+                className='overflow-auto bg-slate-950 text-white rounded-sm p-2'
+            >
+                <Markdown
+                    children={messageObject.text}
+                    options={{
+                        overrides: {
+                            code: SyntaxHighlightedCode,
+                        },
+                    }}
+                />
+            </div>)
+    }
+
+    useEffect(() => {
+
+        initializeSocket(project._id)
+
+        if (!webContainer) {
+            getWebContainer().then(container => {
+                setWebContainer(container)
+                console.log("container started")
+            })
         }
-    })
 
-    axios.get(
-        `/projects/get-project/${location.state.project._id}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-    )
-    .then(res => {
-        console.log(res.data.project)
-        setProject(res.data.project)
-        setFileTree(res.data.project.fileTree || {})
-    })
 
-    axios.get(
-        '/users/all',
-        { headers: { Authorization: `Bearer ${token}` } }
-    )
-    .then(res => {
-        setUsers(res.data.users)
-    })
-    .catch(err => {
-        console.log(err)
-    })
+        receiveMessage('project-message', data => {
 
-}, [])
+            console.log(data)
+            
+            if (data.sender._id == 'ai') {
 
-function saveFileTree(ft) {
-    axios.put(
-        '/projects/update-file-tree',
-        {
+
+                const message = JSON.parse(data.message)
+
+                console.log(message)
+
+                webContainer?.mount(message.fileTree)
+
+                if (message.fileTree) {
+                    setFileTree(message.fileTree || {})
+                }
+                setMessages(prevMessages => [ ...prevMessages, data ]) // Update messages state
+            } else {
+
+
+                setMessages(prevMessages => [ ...prevMessages, data ]) // Update messages state
+            }
+        })
+
+
+        axios.get(`/projects/get-project/${location.state.project._id}`).then(res => {
+
+            console.log(res.data.project)
+
+            setProject(res.data.project)
+            setFileTree(res.data.project.fileTree || {})
+        })
+
+        axios.get('/users/all').then(res => {
+
+            setUsers(res.data.users)
+
+        }).catch(err => {
+
+            console.log(err)
+
+        })
+
+    }, [])
+
+    function saveFileTree(ft) {
+        axios.put('/projects/update-file-tree', {
             projectId: project._id,
             fileTree: ft
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-    )
-    .then(res => {
-        console.log(res.data)
-    })
-    .catch(err => {
-        console.log(err)
-    })
-}
-
+        }).then(res => {
+            console.log(res.data)
+        }).catch(err => {
+            console.log(err)
+        })
+    }
 
 
     // Removed appendIncomingMessage and appendOutgoingMessage functions
